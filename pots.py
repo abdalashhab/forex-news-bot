@@ -25,10 +25,13 @@ def run_health_check():
 threading.Thread(target=run_health_check, daemon=True).start()
 
 # ==========================================
-# 2. إعدادات التلغرام
+# 2. إعدادات التلغرام والذاكرة
 # ==========================================
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
+
+# ذاكرة لمنع التكرار والحماية من حظر تلغرام
+seen_entries = set()
 
 def send_telegram_text(message):
     if not BOT_TOKEN or not CHAT_ID:
@@ -48,9 +51,9 @@ def send_telegram_text(message):
         print(f" [!] خطأ أثناء الإرسال للتلغرام: {e}")
 
 # ==========================================
-# 3. دالة الإرسال المستمر (بدون تصفية التكرار)
+# 3. جلب الأخبار اللحظية مع منع التكرار
 # ==========================================
-def fetch_and_send_continuous():
+def fetch_realtime_news():
     sources = {
         "BBC World": "http://feeds.bbci.co.uk/news/world/rss.xml",
         "Al Jazeera English": "https://www.aljazeera.com/xml/rss/all.xml"
@@ -59,35 +62,43 @@ def fetch_and_send_continuous():
     for source_name, rss_url in sources.items():
         try:
             feed = feedparser.parse(rss_url)
-            # إرسال أحدث خبرين من كل مصدر في كل دورة
-            for entry in feed.entries[:2]:
+            for entry in feed.entries[:3]:
                 link = entry.get("link", "")
+                
+                # تخطي الخبر إذا تم إرساله مسبقاً
+                if link in seen_entries:
+                    continue
+
                 title = entry.get("title", "")
 
                 message = (
-                    f"🌍 **تحديث إخباري مستمر ({source_name})**\n\n"
+                    f"🌍 **تحديث عاجل ({source_name})**\n\n"
                     f"📌 **{title}**\n\n"
                     f"🔗 [اقرأ الخبر كاملًا]({link})"
                 )
 
                 send_telegram_text(message)
-                print(f" [✓] تم إرسال: {title[:40]}...")
+                print(f" [✓] تم إرسال خبر جديد: {title[:40]}...")
+                
+                # حفظ الرابط في الذاكرة
+                seen_entries.add(link)
+                time.sleep(1) # تأخير ثانية لحماية البوت
 
         except Exception as e:
             print(f" [!] تعذر جلب الأخبار من {source_name}: {e}")
 
 # ==========================================
-# 4. حلقة التشغيل الدائمة السريعة
+# 4. حلقة التشغيل الفورية (فحص كل 60 ثانية)
 # ==========================================
 if __name__ == "__main__":
-    print("... بدأ تشغيل البوت بدون آلية منع التكرار (إرسال مستمر)")
+    print("... بدأ تشغيل البوت المباشر للأخبار العاجلة")
     
     while True:
         try:
-            print("... جاري الإرسال المباشر للأخبار الحالية")
-            fetch_and_send_continuous()
+            print("... جاري فحص الأخبار الجديدة")
+            fetch_realtime_news()
         except Exception as e:
             print(f" [!] حدث خطأ أثناء التحديث: {e}")
         
-        # تكرار العملية كل 60 ثانية (دقيقة واحدة)
+        # فحص المصادر كل دقيقة
         time.sleep(60)
