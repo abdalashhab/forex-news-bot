@@ -30,7 +30,6 @@ threading.Thread(target=run_health_check, daemon=True).start()
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# سجل حفظ روابط الأخبار لمنع الإرسال المكرر
 seen_entries = set()
 
 def send_telegram_text(message):
@@ -51,42 +50,35 @@ def send_telegram_text(message):
         print(f" [!] خطأ أثناء الإرسال للتلغرام: {e}")
 
 # ==========================================
-# 3. دالة جلب جميع الأخبار العالمية (بدون فلترة)
+# 3. جلب الأخبار العامة (بدون تداول أو استثمار)
 # ==========================================
-def fetch_all_global_news():
-    # مصادر إخبارية عالمية متنوعة
+def fetch_general_world_news():
+    # مصادر إخبارية عالمية عامة تعمل على مدار 24/7 طوال الأسبوع
     sources = {
-        "FXStreet News": "https://www.fxstreet.com/rss/news",
-        "ForexFactory": "https://www.forexfactory.com/news.xml",
-        "Investing.com Forex": "https://www.investing.com/rss/news_1.rss",
-        "Investing.com Commodities": "https://www.investing.com/rss/news_11.rss"
+        "BBC World": "http://feeds.bbci.co.uk/news/world/rss.xml",
+        "Al Jazeera English": "https://www.aljazeera.com/xml/rss/all.xml",
+        "Reuters World": "https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en"
     }
 
     for source_name, rss_url in sources.items():
         try:
             feed = feedparser.parse(rss_url)
-            # فحص أحدث 3 أخبار من كل مصدر في كل دورة
             for entry in feed.entries[:3]:
                 link = entry.get("link", "")
                 
-                # إهمال الخبر إذا تم إرساله من قبل
                 if link in seen_entries:
                     continue
 
                 title = entry.get("title", "")
 
-                # صياغة الرسالة الشاملة
                 message = (
-                    f"🌐 **خبر عالمي جديد ({source_name})**\n\n"
+                    f"🌍 **خبر عالمي عاجل ({source_name})**\n\n"
                     f"📌 **{title}**\n\n"
-                    f"🔗 [اقرأ الخبر كاملاً]({link})"
+                    f"🔗 [اقرأ الخبر كاملًا]({link})"
                 )
 
-                # الإرسال المباشر للتلغرام
                 send_telegram_text(message)
                 print(f" [✓] تم إرسال: {title[:40]}...")
-
-                # حفظ الرابط في الذاكرة
                 seen_entries.add(link)
 
         except Exception as e:
@@ -96,14 +88,14 @@ def fetch_all_global_news():
 # 4. حلقة التشغيل الدائمة
 # ==========================================
 if __name__ == "__main__":
-    print("... بدأ تشغيل مجس الأخبار العالمية الشامل")
+    print("... بدأ تشغيل مجس الأخبار العالمية العامة")
     
     while True:
         try:
-            print("... جاري جلب أحدث الأخبار العالمية من جميع المصادر")
-            fetch_all_global_news()
+            print("... جاري فحص الأخبار العالمية العامة")
+            fetch_general_world_news()
         except Exception as e:
             print(f" [!] حدث خطأ أثناء التحديث: {e}")
         
-        # الانتظار دقيقتين بين كل فحص لسرعة جلب التحديثات
-        time.sleep(120)
+        # فحص كل 5 دقائق
+        time.sleep(300)
