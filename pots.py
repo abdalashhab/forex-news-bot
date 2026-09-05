@@ -3,11 +3,10 @@ import time
 import threading
 import requests
 import feedparser
-from bs4 import BeautifulSoup
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # ==========================================
-# 1. إعداد خادم الصحة (Health Check) لـ Render
+# 1. خادم الصحة (Health Check) لـ Render
 # ==========================================
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -21,25 +20,22 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
 def run_health_check():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-    print(f" [✓] تم تشغيل خادم الاستجابة على المنفذ: {port}")
     server.serve_forever()
 
-# تشغيل خادم الصحة في Thread منفصل بداخل الخلفية
 threading.Thread(target=run_health_check, daemon=True).start()
 
 # ==========================================
-# 2. إعدادات البوت ومتغيرات البيئة
+# 2. إعدادات التلغرام والذاكرة
 # ==========================================
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# القائمة المؤقتة لحفظ الأخبار المنسوخة لمنع التكرار
+# سجل حفظ روابط الأخبار لمنع الإرسال المكرر
 seen_entries = set()
 
 def send_telegram_text(message):
-    """إرسال رسالة نصية للتلغرام"""
     if not BOT_TOKEN or not CHAT_ID:
-        print(" [!] خطأ: لم يتم ضبط BOT_TOKEN أو CHAT_ID في متغيرات البيئة!")
+        print(" [!] خطأ: لم يتم ضبط BOT_TOKEN أو CHAT_ID!")
         return
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
@@ -52,97 +48,62 @@ def send_telegram_text(message):
         response = requests.post(url, data=payload, timeout=10)
         response.raise_for_status()
     except Exception as e:
-        print(f" [!] خطأ في إرسال الرسالة إلى التلغرام: {e}")
-
-def send_telegram_post(photo_path, caption):
-    """إرسال صورة مع نص للتلغرام"""
-    if not BOT_TOKEN or not CHAT_ID:
-        print(" [!] خطأ: لم يتم ضبط BOT_TOKEN أو CHAT_ID!")
-        return
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
-    try:
-        with open(photo_path, "rb") as photo:
-            payload = {
-                "chat_id": CHAT_ID,
-                "caption": caption,
-                "parse_mode": "Markdown"
-            }
-            files = {"photo": photo}
-            response = requests.post(url, data=payload, files=files, timeout=15)
-            response.raise_for_status()
-    except Exception as e:
-        print(f" [!] تعذر إرسال الصورة ({e})، يتم الإرسال كنص فقط...")
-        send_telegram_text(caption)
+        print(f" [!] خطأ أثناء الإرسال للتلغرام: {e}")
 
 # ==========================================
-# 3. دالة جلب الأخبار وتصليحها
+# 3. دالة جلب جميع الأخبار العالمية (بدون فلترة)
 # ==========================================
-def check_and_send_news():
-    """دالة فحص مصادر الأخبار ومعالجتها وإرسالها"""
-    
-    # قائمة مصادر RSS
+def fetch_all_global_news():
+    # مصادر إخبارية عالمية متنوعة
     sources = {
-        "FXStreet": "https://www.fxstreet.com/rss/news",
-        "ForexFactory": "https://www.forexfactory.com/news.xml"
+        "FXStreet News": "https://www.fxstreet.com/rss/news",
+        "ForexFactory": "https://www.forexfactory.com/news.xml",
+        "Investing.com Forex": "https://www.investing.com/rss/news_1.rss",
+        "Investing.com Commodities": "https://www.investing.com/rss/news_11.rss"
     }
 
-    # الكلمات المفتاحية المطلوبة
-    keywords = ["gold", "xauusd", "fed", "inflation", "cpi", "dollar", "powell", "interest rate"]
-
     for source_name, rss_url in sources.items():
-        print(f" [+] جلب الأخبار من: {source_name}")
         try:
             feed = feedparser.parse(rss_url)
-            for entry in feed.entries[:5]:  # فحص أحدث 5 أخبار فقط
+            # فحص أحدث 3 أخبار من كل مصدر في كل دورة
+            for entry in feed.entries[:3]:
                 link = entry.get("link", "")
                 
-                # تخطي الخبر إذا تم إرساله سابقاً
+                # إهمال الخبر إذا تم إرساله من قبل
                 if link in seen_entries:
                     continue
 
                 title = entry.get("title", "")
-                title_lower = title.lower()
 
-                # التثبت من وجود كلمة مفتاحية
-                found_keyword = None
-                for kw in keywords:
-                    if kw in title_lower:
-                        found_keyword = kw
-                        break
+                # صياغة الرسالة الشاملة
+                message = (
+                    f"🌐 **خبر عالمي جديد ({source_name})**\n\n"
+                    f"📌 **{title}**\n\n"
+                    f"🔗 [اقرأ الخبر كاملاً]({link})"
+                )
 
-                if found_keyword:
-                    # صياغة النص النهائي للخبر
-                    message = (
-                        f"🚨 **عاجل أسواق ({source_name})** | #{found_keyword.upper()}\n\n"
-                        f"📌 **{title}**\n\n"
-                        f"🔗 [اقرأ الخبر كاملاً]({link})"
-                    )
+                # الإرسال المباشر للتلغرام
+                send_telegram_text(message)
+                print(f" [✓] تم إرسال: {title[:40]}...")
 
-                    # إرسال الخبر للتلغرام
-                    send_telegram_text(message)
-                    print(f" [✓] تم إرسال خبر ({found_keyword}) بنجاح!")
-                    
-                    # حفظ الخبر لمنع تكراره
-                    seen_entries.add(link)
-                    
-                    # الخروج من حلقة المصدر بعد إرسال أحدث خبر مفلتر
-                    break
+                # حفظ الرابط في الذاكرة
+                seen_entries.add(link)
 
         except Exception as e:
-            print(f" [!] خطأ أثناء فحص المصدر {source_name}: {e}")
+            print(f" [!] تعذر جلب الأخبار من {source_name}: {e}")
 
 # ==========================================
-# 4. حلقة التشغيل الدائمة للبوت
+# 4. حلقة التشغيل الدائمة
 # ==========================================
 if __name__ == "__main__":
-    print("... بدأ تشغيل المحرك المفلتر لأخبار الذهب والعملات الأساسية")
+    print("... بدأ تشغيل مجس الأخبار العالمية الشامل")
     
     while True:
         try:
-            print("... جاري فحص الأخبار")
-            check_and_send_news()
+            print("... جاري جلب أحدث الأخبار العالمية من جميع المصادر")
+            fetch_all_global_news()
         except Exception as e:
-            print(f" [!] حدث خطأ عام في الحلقة الرئيسية: {e}")
+            print(f" [!] حدث خطأ أثناء التحديث: {e}")
         
-        # الانتظار 5 دقائق (300 ثانية) قبل إعادة الفحص
-        time.sleep(300)
+        # الانتظار دقيقتين بين كل فحص لسرعة جلب التحديثات
+        time.sleep(120)
