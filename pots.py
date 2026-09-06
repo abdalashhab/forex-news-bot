@@ -34,8 +34,8 @@ threading.Thread(target=run_health_check, daemon=True).start()
 # ==========================================
 # 2. التوكن والآيدي مباشرة (ضع بياناتك هنا)
 # ==========================================
-BOT_TOKEN = os.environ.get("BOT_TOKEN") or "8672262564:AAE_SGfQ_EjhCgY-sBAe4ByjZLJ9XgdBQeY"
-CHAT_ID = os.environ.get("CHAT_ID") or "@ForexNewsAlerts2026"
+BOT_TOKEN = os.environ.get("BOT_TOKEN") or "توكين"
+CHAT_ID = os.environ.get("CHAT_ID") or "@id"
 
 translator = GoogleTranslator(source='auto', target='ar')
 seen_entries = set()
